@@ -1,35 +1,27 @@
 # bot.py
 
 import os
-
-import discord
 from dotenv import load_dotenv
+from discord.ext import commands
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-client = discord.Client()
+bot = commands.Bot(command_prefix="!")
 
-@client.event
+@bot.event
 async def on_ready():
-    print(f'{client.user} is connected to the following guilds:')
-    for guild in client.guilds:
+    print(f'{bot.user} is connected to the following guilds:')
+    for guild in bot.guilds:
         print(f'  {guild.name} (id: {guild.id}), which has these members:')
         members = ', '.join([member.name for member in guild.members])
         print(f'    {members}')
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-    
-    print(f'{str(message.author)}: {message.content}')
-    if message.content == "test":
-        await message.channel.send("You sent a test")
-    elif message.content == "raise-exception":
-        raise discord.DiscordException
+@bot.command(name="test")
+async def test_command(ctx):
+    await ctx.send("You sent a !test")
 
-@client.event
+@bot.event
 async def on_error(event, *args, **kwargs):
     with open("err.log", "a+") as f:
         if event == "on_message":
@@ -39,4 +31,4 @@ async def on_error(event, *args, **kwargs):
             raise
 
 
-client.run(TOKEN)
+bot.run(TOKEN)
