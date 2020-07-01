@@ -1,34 +1,60 @@
 # bot.py
 
 import os
-from dotenv import load_dotenv
+import env
 from discord.ext import commands
+import discord
 
-load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
+TOKEN = env.DISCORD_TOKEN
 
-bot = commands.Bot(command_prefix="!")
+bot = commands.Bot(command_prefix="rolebot ")
 
+EmojiAssignments = {}
+
+# Initialization message
 @bot.event
 async def on_ready():
-    print(f'{bot.user} is connected to the following guilds:')
-    for guild in bot.guilds:
-        print(f'  {guild.name} (id: {guild.id}), which has these members:')
-        members = ', '.join([member.name for member in guild.members])
-        print(f'    {members}')
+    guilds = ', '.join([guild.name for guild in bot.guilds])
+    print(f"{bot.user} is ready and connected to {guilds}.")
 
-@bot.command(name="test")
+@bot.command(name="test", help=" - Boring command just for testing")
 async def test_command(ctx):
     await ctx.send("You sent a !test")
 
+@bot.command(name="assign", help=" - Assigns an emoji to a role\nUsage: rolebot assign [emoji] [role name]")
+async def assign_emoji(ctx, emoji, roleString):
+    PreviousRole = None
+    if emoji in EmojiAssignments:
+        PreviousRole = EmojiAssignments[emoji]
+    EmojiAssignments[emoji] = roleString
+    if PreviousRole:
+        await ctx.send(f"Reassigning {emoji} from {PreviousRole} to {EmojiAssignments[emoji]}")
+    else:
+        await ctx.send(f"{emoji} asssigned to {EmojiAssignments[emoji]}")
+
+@bot.command(name="detach", help=" - Removes the association from an emoji to a role\nUsage: rolebot detach [emoji_]")
+async def detach_emoji(ctx, emoji):
+    PreviousRole = None
+    if emoji in EmojiAssignments:
+        PreviousRole = EmojiAssignments[emoji]
+        EmojiAssignments.pop(emoji)
+    if PreviousRole:
+        await ctx.send(f"{emoji} is no longer assigned to {PreviousRole}")
+    else:
+        await ctx.send(f"{emoji} was not assigned")
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    print(f"{user.name} reacted with {reaction.emoji}")
+    print(f"{reaction.emoji}")
+
+@bot.event
+async def on_reaction_remove(reaction, user):
+    print(f"{user.name} removed their {reaction.emoji} reaction")
+
 @bot.event
 async def on_error(event, *args, **kwargs):
-    with open("err.log", "a+") as f:
-        if event == "on_message":
-            f.write(f"unhandled message written by {args[0].author.name} at {args[0].created_at}\n")
-            f.write(f"  Full data: {args[0]}\n")
-        else:
-            raise
+    raise
 
 
 bot.run(TOKEN)
