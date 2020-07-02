@@ -26,8 +26,6 @@ async def list_emoji(ctx):
     message_text = "Current bindings:"
     for emoji in EmojiAssignments[ctx.channel]:
         message_text += f"\n{emoji}: {EmojiAssignments[ctx.channel][emoji].name}"
-    await ctx.send(message_text)
-    return
     message = await ctx.send(message_text)
     for emoji in EmojiAssignments[ctx.channel]:
         await message.add_reaction(emoji)
@@ -58,6 +56,9 @@ async def assign_emoji(ctx, emoji, roleString):
     if not role:
         await ctx.send(f"{roleString} is not a valid role. Assignment of {emoji} has not changed.")
         return
+    if role > ctx.guild.get_member(bot.user.id).top_role:
+        await ctx.send(f"I do not have permission to assign or revoke {role.name} due to its position in the hierarchy. Assignment of {emoji} has not changed.")
+        return
     PreviousRole = None
     if emoji in EmojiAssignments[ctx.channel]:
         PreviousRole = EmojiAssignments[ctx.channel][emoji]
@@ -84,25 +85,32 @@ async def deassign_emoji(ctx, emoji):
 @bot.event
 async def on_reaction_add(reaction, user):
     cnl = reaction.message.channel
-    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]):
+    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]) or (reaction.me):
         return
-    await user.add_roles(EmojiAssignments[cnl][str(reaction.emoji)], reason="RoleBot")
-    print(f"{user.name} given role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
+    try:
+        await user.add_roles(EmojiAssignments[cnl][str(reaction.emoji)], reason="RoleBot")
+    except discord.Forbidden:
+        await cnl.send(f"I do not have sufficient permissions to assign {EmojiAssignments[cnl][str(reaction.emoji)].name}")
+    except:
+        raise
+    else:
+        print(f"{user.name} given role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
 
 @bot.event
 async def on_reaction_remove(reaction, user):
     cnl = reaction.message.channel
-    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]):
+    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]) or (reaction.me):
         return
     if EmojiAssignments[cnl][str(reaction.emoji)] not in user.roles:
         print(f"{user.name} did not have role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
         return
-    await user.remove_roles(EmojiAssignments[cnl][str(reaction.emoji)], reason="RoleBot")
-    print(f"{user.name} lost role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
-
-@bot.event
-async def on_error(event, *args, **kwargs):
-    raise
-
+    try:
+        await user.remove_roles(EmojiAssignments[cnl][str(reaction.emoji)], reason="RoleBot")
+    except discord.Forbidden:
+        await cnl.send(f"I do not have sufficient permissions to revoke {EmojiAssignments[cnl][str(reaction.emoji)].name}")
+    except:
+        raise
+    else:
+        print(f"{user.name} lost role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
 
 bot.run(TOKEN)
