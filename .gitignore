@@ -3,3 +3,4 @@ env.py
 err.log
 __pycache__
 saves/*
+logs/*
