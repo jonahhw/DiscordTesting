@@ -7,7 +7,6 @@ First, install all dependencies in requirements.txt
 Then, create a file called env.py in the same directory as bot.py. It should contain:
 ```python
 # env.py
-class env:
-    DISCORD_TOKEN = "[your bot token here]"
+DISCORD_TOKEN = "[your bot token here]"
 ```
 Other than that, it should be fairly simple. Run with `python bot.py`

@@ -7,7 +7,7 @@ import discord
 
 TOKEN = env.DISCORD_TOKEN
 
-bot = commands.Bot(command_prefix="rolebot ")
+bot = commands.Bot(command_prefix="rb ")
 
 EmojiAssignments = {}
 
@@ -23,14 +23,17 @@ async def test_command(ctx):
 
 @bot.command(name="assign", help=" - Assigns an emoji to a role\nUsage: rolebot assign [emoji] [role name]")
 async def assign_emoji(ctx, emoji, roleString):
+    role = discord.utils.find(lambda r: r.name == roleString, ctx.guild.roles)
+    if not role:
+        await ctx.send(f"{roleString} is not a valid role. Assignment of {emoji} has not changed.")
     PreviousRole = None
     if emoji in EmojiAssignments:
         PreviousRole = EmojiAssignments[emoji]
-    EmojiAssignments[emoji] = roleString
+    EmojiAssignments[emoji] = role
     if PreviousRole:
-        await ctx.send(f"Reassigning {emoji} from {PreviousRole} to {EmojiAssignments[emoji]}")
+        await ctx.send(f"Reassigning {emoji} from {PreviousRole.name} to {EmojiAssignments[emoji].name}")
     else:
-        await ctx.send(f"{emoji} asssigned to {EmojiAssignments[emoji]}")
+        await ctx.send(f"{emoji} asssigned to {EmojiAssignments[emoji].name}")
 
 @bot.command(name="detach", help=" - Removes the association from an emoji to a role\nUsage: rolebot detach [emoji_]")
 async def detach_emoji(ctx, emoji):
@@ -39,7 +42,7 @@ async def detach_emoji(ctx, emoji):
         PreviousRole = EmojiAssignments[emoji]
         EmojiAssignments.pop(emoji)
     if PreviousRole:
-        await ctx.send(f"{emoji} is no longer assigned to {PreviousRole}")
+        await ctx.send(f"{emoji} is no longer assigned to {PreviousRole.name}")
     else:
         await ctx.send(f"{emoji} was not assigned")
 
