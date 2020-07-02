@@ -48,12 +48,21 @@ async def detach_emoji(ctx, emoji):
 
 @bot.event
 async def on_reaction_add(reaction, user):
-    print(f"{user.name} reacted with {reaction.emoji}")
+    if (reaction.message.author != bot.user) or (reaction.emoji not in EmojiAssignments):
+        return
+    await user.add_roles(EmojiAssignments[reaction.emoji], reason="RoleBot")
+    print(f"{user.name} given role {EmojiAssignments[reaction.emoji].name}")
     print(f"{reaction.emoji}")
 
 @bot.event
 async def on_reaction_remove(reaction, user):
-    print(f"{user.name} removed their {reaction.emoji} reaction")
+    if (reaction.message.author != bot.user) or (reaction.emoji not in EmojiAssignments):
+        return
+    if EmojiAssignments[reaction.emoji] not in user.roles:
+        print(f"{user.name} did not have role {EmojiAssignments[reaction.emoji].name}")
+        return
+    await user.remove_roles(EmojiAssignments[reaction.emoji], reason="RoleBot")
+    print(f"{user.name} lost role {EmojiAssignments[reaction.emoji].name}")
 
 @bot.event
 async def on_error(event, *args, **kwargs):
