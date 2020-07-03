@@ -6,10 +6,11 @@ from discord.ext import commands
 import discord
 import json
 
-TOKEN = env.DISCORD_TOKEN       # The token, taken from env.py (which is hidden from the git repo)
+TOKEN = env.DISCORD_TOKEN       # The bot token, taken from env.py (which is hidden from the git repo)
 NOT_ACTIVE_MESSAGE = "RoleBot is not active in {channel_name}. Use `rb activate` to activate."
 SAVE_FILE = "save.json"
 ROLE_NEEDED = "MasterOfRoles"   # Change this to @everyone if you want anyone to be able to assign emoji and stuff
+ROLE_ADMIN = "MasterOfRoles"    # Required for load and clear. Set to None to disable both
 
 bot = commands.Bot(command_prefix="rb ")
 
@@ -18,26 +19,7 @@ EmojiAssignments = {}   # A dictionary of dictionaries. EmojiAssignments[Channel
 # Initialization message
 @bot.event
 async def on_ready():
-    SavableAssignments = {}
-    try:
-        with open(SAVE_FILE, "r") as f:
-            SavableAssignments = json.load(f)
-    except:
-        print(f"Could not load file {SAVE_FILE}")
-    else:
-        for cnl_id in SavableAssignments:
-            cnl = None
-            guild = None
-            for guild_it in bot.guilds:
-                for channel in guild_it.text_channels:
-                    if channel.id == int(cnl_id):
-                        cnl = channel
-                        guild = guild_it
-            if cnl:
-                EmojiAssignments[cnl] = {}
-                for emoji in SavableAssignments[cnl_id]:
-                    EmojiAssignments[cnl][emoji] = discord.utils.get(guild.roles, id=int(SavableAssignments[cnl_id][emoji]))
-    #######################
+    if load(): print(f"Could not load file {SAVE_FILE}")
     guilds = ", ".join(guild.name for guild in bot.guilds)
     print(f"{bot.user} is ready and connected to {guilds}")
 
@@ -178,11 +160,14 @@ async def on_reaction_remove(reaction, user):
 @bot.command(name="save", help=" - Saves the (channel, emoji)->role dict into a json file")
 @commands.check_any(commands.has_role(ROLE_NEEDED), commands.has_permissions(manage_roles=True))
 async def save_command(ctx):
+    if ctx.channel not in EmojiAssignments:
+        await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
+        return
     if save():
         await ctx.send("Error saving file")
     else:
         await ctx.send(f"File saved as {SAVE_FILE}")
-        print("File saved")
+        print(f"File saved by {ctx.author}")
 
 @save_command.error
 async def save_error(ctx, error):
@@ -191,6 +176,9 @@ async def save_error(ctx, error):
 @bot.command(name="send", help=" - Saves the (channel, emoji)->role dict into a json file and then sends to the channel in which this was run")
 @commands.check_any(commands.has_role(ROLE_NEEDED), commands.has_permissions(manage_roles=True))
 async def send_command(ctx):
+    if ctx.channel not in EmojiAssignments:
+        await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
+        return
     if save():
         await ctx.send("Error saving file")
     else:
@@ -198,13 +186,52 @@ async def send_command(ctx):
             with open(SAVE_FILE) as f:
                 await ctx.send(f"File saved as {SAVE_FILE}", file=discord.File(f, SAVE_FILE))
         except:
-            raise
             await ctx.send("File saved, but could not be sent")
+            print(f"File saved and and failed send by {ctx.author}")
         else:
-            print("File saved and sent")
+            print(f"File saved and sent by {ctx.author}")
 
 @send_command.error
 async def send_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
+@bot.command(name="load", help=" - Loads the assignments the same way they were the last time save or send was run")
+@commands.check_any(commands.has_role(ROLE_NEEDED), commands.has_permissions(manage_roles=True))
+async def load_command(ctx):
+    if ctx.channel not in EmojiAssignments:
+        await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
+        return
+    if await user_is_admin(ctx):   # TODO: turn into a check
+        if load():
+            await ctx.send(f"Error loading \"{SAVE_FILE}\". Assignments have not changed.")
+        else:
+            await ctx.send(f"{SAVE_FILE} loaded into memory")
+            print(f"{SAVE_FILE} loaded by {ctx.author}")
+    else:
+        print(f"{ctx.author} attempted to load from {SAVE_FILE}, but permission check failed")
+
+@load_command.error
+async def load_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
+@bot.command(name="clear", help=" - Clears all channel and emoji assignments")
+@commands.check_any(commands.has_role(ROLE_NEEDED), commands.has_permissions(manage_roles=True))
+async def clear_memory(ctx):
+    global EmojiAssignments
+    if ctx.channel not in EmojiAssignments:
+        await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
+        return
+    if await user_is_admin(ctx):   # TODO: turn into a check
+        for cnl in EmojiAssignments:
+            EmojiAssignments[cnl] = dict()
+        EmojiAssignments = dict()
+        print(f"Memory cleared by {ctx.author}")
+        await ctx.send(f"All channel and emoji assignments have been cleared.")
+    else:
+        print(f"{ctx.author} attempted to clear memory, but permission check failed")
+
+@clear_memory.error
+async def clear_error(ctx, error):
     if not await general_error(ctx, error): raise
 
 async def general_error(ctx, error):
@@ -218,6 +245,18 @@ async def general_error(ctx, error):
         return True
     else:
         return False
+
+async def user_is_admin(ctx):    # TODO: turn into a check
+    if ROLE_ADMIN and (discord.utils.get(ctx.guild.roles, name=ROLE_ADMIN) in ctx.author.roles):
+        return True
+    elif ROLE_ADMIN:
+        await ctx.send(f"Permission check failed. You need {ROLE_ADMIN} to use this. This incident will be reported.")
+        return False
+    else:
+        await ctx.send("That command is disabled for this instance of RoleBot. This incident will be reported.")
+        return False
+
+# TODO: add ability to log errors and permission check failures to a file
 
 def save():
     SavableAssignments = {}
@@ -234,5 +273,28 @@ def save():
         return True
     else:
         return False
+
+def load():
+    SavableAssignments = {}
+
+    try:
+        with open(SAVE_FILE, "r") as f:
+            SavableAssignments = json.load(f)
+    except:
+        return True
+    else:
+        for cnl_id in SavableAssignments:
+            cnl = None
+            guild = None
+            for guild_it in bot.guilds:
+                for channel in guild_it.text_channels:
+                    if channel.id == int(cnl_id):
+                        cnl = channel
+                        guild = guild_it
+            if cnl:
+                EmojiAssignments[cnl] = {}
+                for emoji in SavableAssignments[cnl_id]:
+                    EmojiAssignments[cnl][emoji] = discord.utils.get(guild.roles, id=int(SavableAssignments[cnl_id][emoji]))
+    return False
 
 bot.run(TOKEN)
