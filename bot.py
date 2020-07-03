@@ -4,9 +4,11 @@ import os
 import env
 from discord.ext import commands
 import discord
+import json
 
 TOKEN = env.DISCORD_TOKEN       # The token, taken from env.py (which is hidden from the git repo)
 NOT_ACTIVE_MESSAGE = "RoleBot is not active in {channel_name}"
+SAVE_FILE = "save.json"
 
 bot = commands.Bot(command_prefix="rb ")
 
@@ -15,6 +17,29 @@ EmojiAssignments = {}   # A dictionary of dictionaries. EmojiAssignments[Channel
 # Initialization message
 @bot.event
 async def on_ready():
+    SavableAssignments = {}
+    try:
+        with open(SAVE_FILE, "r") as f:
+            SavableAssignments = json.load(f)
+    except:
+        print(f"Could not load file {SAVE_FILE}")
+    else:
+        for cnl_id in SavableAssignments:
+            cnl = None
+            guild = None
+            for guild_it in bot.guilds:
+                print(f"Searching {guild_it.name}")
+                for channel in guild_it.text_channels:
+                    print(f"Searching {channel.name}")
+                    if channel.id == int(cnl_id):
+                        print("Found a match")
+                        cnl = channel
+                        guild = guild_it
+            if cnl:
+                EmojiAssignments[cnl] = {}
+                for emoji in SavableAssignments[cnl_id]:
+                    EmojiAssignments[cnl][emoji] = discord.utils.get(guild.roles, id=int(SavableAssignments[cnl_id][emoji]))
+    #######################
     guilds = ", ".join(guild.name for guild in bot.guilds)
     print(f"{bot.user} is ready and connected to {guilds}")
 
@@ -112,5 +137,44 @@ async def on_reaction_remove(reaction, user):
         raise
     else:
         print(f"{user.name} lost role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
+
+@bot.command(name="save", help=" - Saves the (channel, emoji)->role dict into a json file")
+async def save_command(ctx):
+    if save():
+        await ctx.send("Error saving file")
+    else:
+        await ctx.send(f"File saved as {SAVE_FILE}")
+        print("File saved")
+
+
+@bot.command(name="send", help=" - Saves the (channel, emoji)->role dict into a json file and then sends to the channel in which this was run")
+async def send_command(ctx):
+    if save():
+        await ctx.send("Error saving file")
+    else:
+        try:
+            with open(SAVE_FILE) as f:
+                await ctx.send(f"File saved as {SAVE_FILE}", file=discord.File(f, SAVE_FILE))
+        except:
+            raise
+            await ctx.send("File saved, but could not be sent")
+        else:
+            print("File saved and sent")
+
+def save():
+    SavableAssignments = {}
+
+    for cnl in EmojiAssignments:
+        SavableAssignments[cnl.id] = {}
+        for emoji in EmojiAssignments[cnl]:
+            SavableAssignments[cnl.id][emoji] = EmojiAssignments[cnl][emoji].id
+
+    try:
+        with open(SAVE_FILE, "w") as f:
+            json.dump(SavableAssignments, f)
+    except:
+        return True
+    else:
+        return False
 
 bot.run(TOKEN)

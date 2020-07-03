@@ -1,6 +1,4 @@
 .venv
 env.py
-err.log
 __pycache__
-saves/*
-logs/*
+save.json
