@@ -28,11 +28,8 @@ async def on_ready():
             cnl = None
             guild = None
             for guild_it in bot.guilds:
-                print(f"Searching {guild_it.name}")
                 for channel in guild_it.text_channels:
-                    print(f"Searching {channel.name}")
                     if channel.id == int(cnl_id):
-                        print("Found a match")
                         cnl = channel
                         guild = guild_it
             if cnl:
@@ -110,7 +107,7 @@ async def deassign_emoji(ctx, emoji):
 @bot.event
 async def on_reaction_add(reaction, user):
     cnl = reaction.message.channel
-    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]) or (reaction.me):
+    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]) or (user == bot.user):
         return
     try:
         await user.add_roles(EmojiAssignments[cnl][str(reaction.emoji)], reason="RoleBot")
@@ -124,7 +121,7 @@ async def on_reaction_add(reaction, user):
 @bot.event
 async def on_reaction_remove(reaction, user):
     cnl = reaction.message.channel
-    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]) or (reaction.me):
+    if (cnl not in EmojiAssignments) or (reaction.message.author != bot.user) or (str(reaction.emoji) not in EmojiAssignments[cnl]) or (user == bot.user):
         return
     if EmojiAssignments[cnl][str(reaction.emoji)] not in user.roles:
         print(f"{user.name} did not have role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
