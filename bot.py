@@ -7,8 +7,9 @@ import discord
 import json
 
 TOKEN = env.DISCORD_TOKEN       # The token, taken from env.py (which is hidden from the git repo)
-NOT_ACTIVE_MESSAGE = "RoleBot is not active in {channel_name}"
+NOT_ACTIVE_MESSAGE = "RoleBot is not active in {channel_name}. Use `rb activate` to activate."
 SAVE_FILE = "save.json"
+ROLE_NEEDED = "MasterOfRoles"   # Change this to @everyone if you want anyone to be able to assign emoji and stuff
 
 bot = commands.Bot(command_prefix="rb ")
 
@@ -52,7 +53,12 @@ async def list_emoji(ctx):
     for emoji in EmojiAssignments[ctx.channel]:
         await message.add_reaction(emoji)
 
+@list_emoji.error
+async def list_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
 @bot.command(name="activate", help=" - Activates the bot in the channel in which it's run.")
+@commands.has_role(ROLE_NEEDED)
 async def activate(ctx):        # If it's not already there, it adds a dictionary under the channel in which this is run
     if ctx.channel not in EmojiAssignments:
         EmojiAssignments[ctx.channel] = {}
@@ -60,7 +66,12 @@ async def activate(ctx):        # If it's not already there, it adds a dictionar
     else:
         await ctx.send(f"RoleBot is already active in {ctx.channel.name}")
 
+@activate.error
+async def activate_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
 @bot.command(name="deactivate", help=" - Deactivates the bot in the channel in which it's run. Warning: this will delete all emoji associations")
+@commands.has_role(ROLE_NEEDED)
 async def deactivate(ctx):      # Removes the dectionary entry for this channel
     if ctx.channel in EmojiAssignments:
         EmojiAssignments.pop(ctx.channel)
@@ -69,7 +80,12 @@ async def deactivate(ctx):      # Removes the dectionary entry for this channel
     else:
         await ctx.send(f"RoleBot was not active in {ctx.channel.name}")
 
+@deactivate.error
+async def deactivate_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
 @bot.command(name="assign", help=" - Assigns an emoji to a role. Usage: `rb assign [emoji] [role name]`")
+@commands.has_role(ROLE_NEEDED)
 async def assign_emoji(ctx, emoji, roleString):
     if ctx.channel not in EmojiAssignments:
         await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
@@ -90,7 +106,13 @@ async def assign_emoji(ctx, emoji, roleString):
     else:
         await ctx.send(f"{emoji} asssigned to {EmojiAssignments[ctx.channel][emoji].name}")
 
+@assign_emoji.error
+async def assign_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
+
 @bot.command(name="deassign", help=" - Removes the association from an emoji to a role. Usage: `rb deassign [emoji]`")
+@commands.has_role(ROLE_NEEDED)
 async def deassign_emoji(ctx, emoji):
     if ctx.channel not in EmojiAssignments:
         await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
@@ -103,6 +125,10 @@ async def deassign_emoji(ctx, emoji):
         await ctx.send(f"{emoji} is no longer assigned to {PreviousRole.name}")
     else:
         await ctx.send(f"{emoji} was not assigned")
+
+@deassign_emoji.error
+async def deassign_error(ctx, error):
+    if not await general_error(ctx, error): raise
 
 @bot.event
 async def on_reaction_add(reaction, user):
@@ -136,6 +162,7 @@ async def on_reaction_remove(reaction, user):
         print(f"{user.name} lost role {EmojiAssignments[cnl][str(reaction.emoji)].name}")
 
 @bot.command(name="save", help=" - Saves the (channel, emoji)->role dict into a json file")
+@commands.has_role(ROLE_NEEDED)
 async def save_command(ctx):
     if save():
         await ctx.send("Error saving file")
@@ -143,8 +170,12 @@ async def save_command(ctx):
         await ctx.send(f"File saved as {SAVE_FILE}")
         print("File saved")
 
+@save_command.error
+async def save_error(ctx, error):
+    if not await general_error(ctx, error): raise
 
 @bot.command(name="send", help=" - Saves the (channel, emoji)->role dict into a json file and then sends to the channel in which this was run")
+@commands.has_role(ROLE_NEEDED)
 async def send_command(ctx):
     if save():
         await ctx.send("Error saving file")
@@ -157,6 +188,22 @@ async def send_command(ctx):
             await ctx.send("File saved, but could not be sent")
         else:
             print("File saved and sent")
+
+@send_command.error
+async def send_error(ctx, error):
+    if not await general_error(ctx, error): raise
+
+async def general_error(ctx, error):
+    InChannel = (ctx.channel in EmojiAssignments)
+    if not InChannel: await ctx.send(NOT_ACTIVE_MESSAGE.format(channel_name = ctx.channel.name))
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(f"You need the {ROLE_NEEDED} role to use that command")
+        return True
+    elif isinstance(error, commands.MissingRequiredArgument):
+        if InChannel: await ctx.send(f"That is improper usage of the command")
+        return True
+    else:
+        return False
 
 def save():
     SavableAssignments = {}
