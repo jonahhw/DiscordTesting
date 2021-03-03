@@ -12,7 +12,11 @@ SAVE_FILE = "save.json"
 ROLE_NEEDED = "MasterOfRoles"   # Change this to @everyone if you want anyone to be able to assign emoji and stuff
 ROLE_ADMIN = "MasterOfRoles"    # Required for load and clear. Set to None to disable both
 
-bot = commands.Bot(command_prefix="rb ")
+# Workaround to get role removing working again
+intents = discord.Intents.default()
+intents.members = True
+
+bot = commands.Bot(command_prefix="rb ", intents=intents)
 
 EmojiAssignments = {}   # A dictionary of dictionaries. EmojiAssignments[Channel][Emoji] = Role
 
